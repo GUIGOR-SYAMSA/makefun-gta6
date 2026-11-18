@@ -1,5 +1,7 @@
-export function showHud(player) {
+export function showHud(player, car = null) {
   document.querySelector('#cash').textContent = `$ ${Math.floor(player.cash).toLocaleString()}`;
+  const driving = document.querySelector('#driving');
+  if (driving) driving.textContent = car ? `IN CAR · ${Math.round(Math.abs(car.speed) * 3.6)} KM/H` : 'ON FOOT';
   document.querySelector('#bar').style.width = `${Math.max(0, Math.min(100, player.health))}%`;
   const minute = Math.floor((performance.now() / 18000 + 42) % 60);
   const hour = 16 + Math.floor((minute + 42) / 60);

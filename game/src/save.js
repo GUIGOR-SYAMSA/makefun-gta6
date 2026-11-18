@@ -11,9 +11,10 @@ export function loadSave() {
   return { ...FRESH_STATE };
 }
 
-export function saveGame(player) {
+export function saveGame(player, car = null, parked = []) {
   try {
-    localStorage.setItem(SAVE_KEY, JSON.stringify({ x: player.x, z: player.z, yaw: player.yaw, cash: player.cash, health: player.health }));
+    const carIndex = car ? parked.indexOf(car) : -1;
+    localStorage.setItem(SAVE_KEY, JSON.stringify({ x: player.x, z: player.z, yaw: player.yaw, cash: player.cash, health: player.health, inCar: !!car, carIndex, ...(car ? { carX: car.x, carZ: car.z, carYaw: car.yaw } : {}) }));
     return true;
   } catch { return false; }
 }

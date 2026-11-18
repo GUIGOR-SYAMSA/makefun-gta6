@@ -1,4 +1,4 @@
-export function drawMap(canvas, city, player) {
+export function drawMap(canvas, city, player, traffic = null, activeCar = null) {
   const context = canvas.getContext('2d'), size = canvas.width, scale = size / (city.edge * 2.25);
   const center = size / 2, worldToMapX = (x) => center + x * scale, worldToMapY = (z) => center + z * scale;
   context.clearRect(0, 0, size, size);
@@ -12,6 +12,10 @@ export function drawMap(canvas, city, player) {
   for (let grid = -city.edge; grid <= city.edge; grid += 40) {
     context.fillRect(worldToMapX(grid - 5.5), 0, 11 * scale, size);
     context.fillRect(0, worldToMapY(grid - 5.5), size, 11 * scale);
+  }
+  if (traffic) for (const car of traffic.all) {
+    context.fillStyle = car === activeCar ? '#ef5b45' : '#253c45';
+    context.beginPath(); context.arc(worldToMapX(car.x), worldToMapY(car.z), car === activeCar ? 5.5 : 3.5, 0, Math.PI * 2); context.fill();
   }
   context.save(); context.translate(worldToMapX(player.x), worldToMapY(player.z)); context.rotate(-player.yaw);
   context.fillStyle = '#d9503f'; context.strokeStyle = '#fff4d8'; context.lineWidth = 2.5;
