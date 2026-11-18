@@ -1,4 +1,4 @@
-export function drawMap(canvas, city, player, traffic = null, activeCar = null) {
+export function drawMap(canvas, city, player, traffic = null, activeCar = null, objective = null) {
   const context = canvas.getContext('2d'), size = canvas.width, scale = size / (city.edge * 2.25);
   const center = size / 2, worldToMapX = (x) => center + x * scale, worldToMapY = (z) => center + z * scale;
   context.clearRect(0, 0, size, size);
@@ -17,6 +17,7 @@ export function drawMap(canvas, city, player, traffic = null, activeCar = null) 
     context.fillStyle = car === activeCar ? '#ef5b45' : car.police ? '#234eae' : '#253c45';
     context.beginPath(); context.arc(worldToMapX(car.x), worldToMapY(car.z), car === activeCar ? 5.5 : 3.5, 0, Math.PI * 2); context.fill();
   }
+  if (objective) { context.fillStyle='#ffd24f'; context.strokeStyle='#753c2a'; context.lineWidth=2; context.beginPath(); context.arc(worldToMapX(objective.x),worldToMapY(objective.z),7,0,Math.PI*2); context.fill(); context.stroke(); context.beginPath(); context.arc(worldToMapX(objective.x),worldToMapY(objective.z),12,0,Math.PI*2); context.stroke(); }
   context.save(); context.translate(worldToMapX(player.x), worldToMapY(player.z)); context.rotate(-player.yaw);
   context.fillStyle = '#d9503f'; context.strokeStyle = '#fff4d8'; context.lineWidth = 2.5;
   context.beginPath(); context.moveTo(0, -10); context.lineTo(7, 8); context.lineTo(0, 4); context.lineTo(-7, 8); context.closePath(); context.fill(); context.stroke(); context.restore();
