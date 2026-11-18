@@ -1,23 +1,20 @@
-let ctx = null, master = null, engineOsc = null, engineGain = null, sirenOsc = null, sirenGain = null, loopTimer = 0, mute = false;
-function safe(fn) { try { return fn(); } catch { return undefined; } }
-function init() {
-  if (ctx) { safe(() => ctx.state === 'suspended' && ctx.resume()); return; }
+let audio = null, master = null, engine = null, engineVol = null, siren = null, sirenVol = null, muted = false, loopAt = 0;
+function safe(action) { try { return action(); } catch { return undefined; } }
+function start() {
   safe(() => {
-    const AC = window.AudioContext || window.webkitAudioContext;
-    if (!AC) return;
-    ctx = new AC(); master = ctx.createGain(); master.gain.value = mute ? 0 : .22; master.connect(ctx.destination);
-    engineOsc = ctx.createOscillator(); engineOsc.type = 'sawtooth'; engineGain = ctx.createGain(); engineGain.gain.value = 0;
-    engineOsc.connect(engineGain); engineGain.connect(master); engineOsc.start();
-    sirenOsc = ctx.createOscillator(); sirenOsc.type = 'square'; sirenGain = ctx.createGain(); sirenGain.gain.value = 0;
-    sirenOsc.connect(sirenGain); sirenGain.connect(master); sirenOsc.start();
-    loopTimer = window.setInterval(() => { if (ctx?.state === 'running' && !mute) { tone(55, .09, .045, 'triangle'); window.setTimeout(() => tone(1800, .035, .018, 'square'), 170); } }, 720);
+    if (audio) { if (audio.state === 'suspended') audio.resume(); return; }
+    const Type = window.AudioContext || window.webkitAudioContext;
+    if (!Type) return;
+    audio = new Type(); master = audio.createGain(); master.gain.value = muted ? 0 : .18; master.connect(audio.destination);
+    engine = audio.createOscillator(); engine.type = 'sawtooth'; engineVol = audio.createGain(); engineVol.gain.value = 0; engine.connect(engineVol); engineVol.connect(master); engine.start();
+    siren = audio.createOscillator(); siren.type = 'square'; sirenVol = audio.createGain(); sirenVol.gain.value = 0; siren.connect(sirenVol); sirenVol.connect(master); siren.start();
   });
 }
-function tone(freq, duration, volume = .12, type = 'sine') { safe(() => { if (!ctx || ctx.state !== 'running' || mute) return; const o=ctx.createOscillator(), g=ctx.createGain(); o.type=type; o.frequency.value=freq; g.gain.setValueAtTime(volume,ctx.currentTime); g.gain.exponentialRampToValueAtTime(.001,ctx.currentTime+duration); o.connect(g);g.connect(master);o.start();o.stop(ctx.currentTime+duration); }); }
+function note(hz, length = .12, wave = 'sine', volume = .08) { safe(() => { if (!audio || audio.state !== 'running' || muted) return; const osc = audio.createOscillator(), amp = audio.createGain(); osc.type = wave; osc.frequency.value = hz; amp.gain.setValueAtTime(volume, audio.currentTime); amp.gain.exponentialRampToValueAtTime(.001, audio.currentTime + length); osc.connect(amp); amp.connect(master); osc.start(); osc.stop(audio.currentTime + length); }); }
 export const sound = {
-  init, mute(value) { mute = value; safe(() => { if (master) master.gain.setTargetAtTime(mute ? 0 : .22, ctx.currentTime, .03); }); },
-  update(speed, wanted) { safe(() => { if (!ctx) return; engineOsc.frequency.setTargetAtTime(48 + Math.min(190, Math.abs(speed)*5),ctx.currentTime,.12); engineGain.gain.setTargetAtTime(Math.abs(speed) > 1 ? .045 : 0,ctx.currentTime,.2); sirenOsc.frequency.setTargetAtTime(650 + 260*Math.sin(performance.now()/190),ctx.currentTime,.08); sirenGain.gain.setTargetAtTime(wanted ? .027 : 0,ctx.currentTime,.18); }); },
-  punch() { tone(115,.12,.18,'triangle'); }, gun() { tone(95,.16,.22,'sawtooth'); }, pickup() { tone(660,.12,.12); window.setTimeout(()=>tone(990,.15,.1),100); },
-  complete() { tone(523,.18,.12); window.setTimeout(()=>tone(659,.18,.11),130); window.setTimeout(()=>tone(784,.3,.12),260); }, sting() { tone(220,.38,.17,'sawtooth'); window.setTimeout(()=>tone(110,.55,.13,'triangle'),170); },
-  get running() { return !!ctx && ctx.state === 'running'; }, get muted() { return mute; },
+  start,
+  toggle(value) { muted = value; safe(() => master?.gain.setTargetAtTime(muted ? 0 : .18, audio.currentTime, .04)); },
+  update(speed, wanted) { safe(() => { if (!audio) return; engine.frequency.setTargetAtTime(48 + Math.min(180, Math.abs(speed) * 5), audio.currentTime, .1); engineVol.gain.setTargetAtTime(Math.abs(speed) > 1 && !muted ? .035 : 0, audio.currentTime, .12); siren.frequency.setTargetAtTime(620 + Math.sin(performance.now() / 180) * 240, audio.currentTime, .08); sirenVol.gain.setTargetAtTime(wanted && !muted ? .022 : 0, audio.currentTime, .1); if (Math.floor(audio.currentTime * 1.8) !== loopAt) { loopAt = Math.floor(audio.currentTime * 1.8); note(55, .18, 'triangle', .025); note(1500, .025, 'square', .008); } }); },
+  punch() { note(115, .12, 'triangle', .12); }, gun() { note(85, .15, 'sawtooth', .16); }, pickup() { note(660); setTimeout(() => note(990), 110); }, complete() { [523, 659, 784].forEach((n, i) => setTimeout(() => note(n, .24), i * 130)); }, sting() { note(220, .4, 'sawtooth', .13); setTimeout(() => note(110, .5, 'triangle', .1), 180); },
+  get running() { return !!audio && audio.state === 'running'; }, get muted() { return muted; },
 };
