@@ -1,19 +1,24 @@
 import * as THREE from 'three';
 
 const colors = [0xd84d3e, 0x397c91, 0xe0b94f, 0x704a89, 0xe5e0cf, 0x3f7659];
-function makeCar(scene, x, z, yaw, color, traffic = false) {
+function makeCar(scene, x, z, yaw, color, traffic = false, police = false) {
   const root = new THREE.Group(); root.position.set(x, 0, z); root.rotation.y = yaw;
   const body = new THREE.Mesh(new THREE.BoxGeometry(2.15, .82, 4.1), new THREE.MeshStandardMaterial({ color, roughness: .42, metalness: .12 }));
   body.position.y = .72; body.castShadow = true; body.receiveShadow = true; root.add(body);
   const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.65, .7, 1.95), new THREE.MeshStandardMaterial({ color: 0x91b8b7, roughness: .26, metalness: .18 }));
   cabin.position.set(0, 1.42, -.1); cabin.castShadow = true; root.add(cabin);
+  if (police) {
+    const stripe = new THREE.Mesh(new THREE.BoxGeometry(2.17,.2,2.15),new THREE.MeshStandardMaterial({color:0xf4f1e6})); stripe.position.set(0,.85,0); root.add(stripe);
+    const bar = new THREE.Mesh(new THREE.BoxGeometry(.9,.16,.34),new THREE.MeshStandardMaterial({color:0x185bbb,emissive:0x123e99})); bar.position.set(0,1.84,-.12); root.add(bar);
+    const red = new THREE.Mesh(new THREE.BoxGeometry(.36,.18,.36),new THREE.MeshStandardMaterial({color:0xed3838,emissive:0x8d1111})); red.position.set(-.3,1.84,-.12); root.add(red);
+  }
   const wheelMat = new THREE.MeshStandardMaterial({ color: 0x202326, roughness: .9 });
   for (const wx of [-1.04, 1.04]) for (const wz of [-1.28, 1.28]) {
     const wheel = new THREE.Mesh(new THREE.CylinderGeometry(.39, .39, .22, 12), wheelMat);
     wheel.rotation.z = Math.PI / 2; wheel.position.set(wx, .4, wz); root.add(wheel);
   }
   scene.add(root);
-  return { root, x, z, yaw, speed: 0, traffic, radius: 2.1, color };
+  return { root, x, z, yaw, speed: 0, traffic, police, radius: 2.1, color };
 }
 
 export function makeTraffic(scene) {
@@ -40,8 +45,35 @@ export function makeTraffic(scene) {
     root.position.set(x, 0, z); scene.add(root);
     people.push({ root, x, z, targetX: x + (i % 2 ? 35 : -35), targetZ: z, flee: 0, phase: i });
   }
-  return { parked, cars, people, all: parked.concat(cars) };
+  return { parked, cars, people, police: [], all: parked.concat(cars) };
 }
+
+export function setPolice(traffic, scene, wanted, playerCar, player, city, dt) {
+  const count = wanted ? Math.min(5, wanted) : 0;
+  while (traffic.police.length < count) {
+    const i=traffic.police.length, a=i*Math.PI*2/Math.max(count,1), edge=city.edge-18;
+    const x=Math.round(Math.cos(a)*edge/40)*40, z=Math.round(Math.sin(a)*edge/40)*40;
+    const car=makeCar(scene,x,z,Math.atan2(player.x-x,player.z-z),0x111820,false,true);
+    car.officers=[]; for(let n=0;n<2;n++){const officer=new THREE.Group();const uniform=new THREE.Mesh(new THREE.CapsuleGeometry(.3,.85,3,6),new THREE.MeshStandardMaterial({color:0x172332}));uniform.position.y=.75;officer.add(uniform);const head=new THREE.Mesh(new THREE.SphereGeometry(.22,8,6),new THREE.MeshStandardMaterial({color:0xc99069}));head.position.y=1.45;officer.add(head);officer.visible=false;scene.add(officer);car.officers.push(officer);} car.flash=Math.random()*10; traffic.police.push(car); traffic.all.push(car);
+  }
+  while (traffic.police.length > count) { const car=traffic.police.pop(); scene.remove(car.root);for(const officer of car.officers)scene.remove(officer); traffic.all.splice(traffic.all.indexOf(car),1); }
+  for (let i=0;i<traffic.police.length;i++) {
+    const car=traffic.police[i], dx=player.x-car.x,dz=player.z-car.z, dist=Math.hypot(dx,dz), target=Math.atan2(dx,dz);
+    let turn=Math.atan2(Math.sin(target-car.yaw),Math.cos(target-car.yaw));
+    car.yaw+=THREE.MathUtils.clamp(turn,-dt*(wanted>=5?2.2:1.5),dt*(wanted>=5?2.2:1.5));
+    car.speed=THREE.MathUtils.damp(car.speed,dist>5?(wanted>=5?16:11):0,1.2,dt);
+    const nx=car.x+Math.sin(car.yaw)*car.speed*dt,nz=car.z+Math.cos(car.yaw)*car.speed*dt;
+    // Pursuit vehicles may cut across blocks when the player is on foot, and follow direct roads in a car chase.
+    if (playerCar && Math.abs(Math.sin(car.yaw-target))<.8) { car.x=nx; car.z=nz; }
+    else { car.x=THREE.MathUtils.damp(car.x,player.x+Math.sin(i*2.4)*10,Math.max(1,car.speed/9),dt); car.z=THREE.MathUtils.damp(car.z,player.z+Math.cos(i*2.4)*10,Math.max(1,car.speed/9),dt); }
+    car.root.position.set(car.x,0,car.z);car.root.rotation.y=car.yaw;
+    const onFoot=!playerCar&&dist<18;
+    car.officers.forEach((officer,n)=>{officer.visible=onFoot;officer.position.set(player.x+Math.cos(i+n*2)*1.4,0,player.z+Math.sin(i+n*2)*1.4);officer.rotation.y=Math.atan2(player.x-officer.position.x,player.z-officer.position.z);});
+    car.flash+=dt*12; car.root.children[car.root.children.length-1].material.emissiveIntensity=.4+Math.abs(Math.sin(car.flash))*2.2;
+  }
+}
+
+export function fleePeople(traffic, x, z) { for(const p of traffic.people) if(!p.down){const dx=p.x-x,dz=p.z-z,l=Math.hypot(dx,dz)||1;p.flee=3;p.targetX=p.x+dx/l*24;p.targetZ=p.z+dz/l*24;} }
 
 function clearAt(x, z, city, traffic, self) {
   if (Math.abs(x) > city.edge - 3 || Math.abs(z) > city.edge - 3) return false;
@@ -62,6 +94,7 @@ export function updateTraffic(traffic, city, dt, playerCar) {
     car.root.position.set(car.x,0,car.z);car.root.rotation.y=car.yaw;
   }
   for(const p of traffic.people){
+    if(p.down)continue;
     let threat=null,near=Infinity;
     for(const car of traffic.all.concat(playerCar?[playerCar]:[])){if(!car)continue;const d=Math.hypot(p.x-car.x,p.z-car.z);if(d<near){near=d;threat=car;}}
     if(near<8){p.flee=.8;const dx=p.x-threat.x,dz=p.z-threat.z,len=Math.hypot(dx,dz)||1;p.targetX=p.x+dx/len*9;p.targetZ=p.z+dz/len*9;}

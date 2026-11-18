@@ -1,5 +1,5 @@
 const SAVE_KEY = 'solmar-heat-save-v2';
-const FRESH_STATE = { x: 0, z: 0, yaw: 0, cash: 2450, health: 100 };
+const FRESH_STATE = { x: 0, z: 0, yaw: 0, cash: 2450, health: 100, wanted: 0 };
 
 export function loadSave() {
   try {
@@ -14,7 +14,7 @@ export function loadSave() {
 export function saveGame(player, car = null, parked = []) {
   try {
     const carIndex = car ? parked.indexOf(car) : -1;
-    localStorage.setItem(SAVE_KEY, JSON.stringify({ x: player.x, z: player.z, yaw: player.yaw, cash: player.cash, health: player.health, inCar: !!car, carIndex, ...(car ? { carX: car.x, carZ: car.z, carYaw: car.yaw } : {}) }));
+    localStorage.setItem(SAVE_KEY, JSON.stringify({ version: 3, x: player.x, z: player.z, yaw: player.yaw, cash: player.cash, health: player.health, wanted: player.wanted || 0, inCar: !!car, carIndex, ...(car ? { carX: car.x, carZ: car.z, carYaw: car.yaw } : {}) }));
     return true;
   } catch { return false; }
 }

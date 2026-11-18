@@ -12,8 +12,8 @@
 </head>
 <body>
 <canvas id="view" aria-label="Solmar Heat coastal city"></canvas>
-<div id="overlay"><div id="card"><h1>SOLMAR HEAT</h1><div id="tag">A city that remembers every favor</div><button id="start">CLICK TO PLAY</button><div id="controls">W A S D — MOVE &nbsp; · &nbsp; MOUSE — ORBIT CAMERA<br>SHIFT — RUN &nbsp; · &nbsp; SPACE — JUMP &nbsp; · &nbsp; ESC — PAUSE</div></div></div>
-<div id="pause">PAUSED</div>
+<div id="overlay"><div id="card"><h1>SOLMAR HEAT</h1><div id="tag">A city that remembers every favor</div><button id="start">CLICK TO PLAY</button><div id="controls">W A S D — MOVE &nbsp; · &nbsp; MOUSE — ORBIT CAMERA<br>SHIFT — RUN &nbsp; · &nbsp; SPACE — JUMP &nbsp; · &nbsp; E — ENTER/EXIT CAR<br>F — PUNCH &nbsp; · &nbsp; G — FIRE PISTOL &nbsp; · &nbsp; ESC — PAUSE</div></div></div>
+<div id="pause">PAUSED</div><div id="death" style="display:none;position:absolute;inset:0;place-items:center;background:#160c0ddd;text-align:center"><div><div id="deathTitle" style="font-size:72px;font-weight:950;letter-spacing:.2em;color:#f3b26d">BUSTED</div><div id="deathText" style="font-size:20px;margin:16px">CASH LOST: $0</div><div style="letter-spacing:.2em">PRESS ANY KEY TO CONTINUE</div></div></div>
 <div id="hud"><div class="panel top"><div>ROOK <span style="color:#a7c7ba">· SOLMAR, 16:42</span></div><div class="money" id="cash">$ 2,450</div><div class="health"><i id="bar"></i></div></div><div class="panel right"><span id="driving">ON FOOT</span><br>WANTED &nbsp; <span class="stars">☆ ☆ ☆ ☆ ☆</span><br><span id="clock" style="font-size:12px;color:#c3ddd2">16:42 · COASTAL DISTRICT</span></div><div class="objective">NO ACTIVE JOB<small>MARA WILL CALL</small></div><canvas class="map" id="map" width="280" height="280"></canvas><div class="north">N ▲</div></div>
 <script type="module" src="./src/main.js"></script>
 </body>

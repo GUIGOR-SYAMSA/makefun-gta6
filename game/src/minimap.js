@@ -14,7 +14,7 @@ export function drawMap(canvas, city, player, traffic = null, activeCar = null) 
     context.fillRect(0, worldToMapY(grid - 5.5), size, 11 * scale);
   }
   if (traffic) for (const car of traffic.all) {
-    context.fillStyle = car === activeCar ? '#ef5b45' : '#253c45';
+    context.fillStyle = car === activeCar ? '#ef5b45' : car.police ? '#234eae' : '#253c45';
     context.beginPath(); context.arc(worldToMapX(car.x), worldToMapY(car.z), car === activeCar ? 5.5 : 3.5, 0, Math.PI * 2); context.fill();
   }
   context.save(); context.translate(worldToMapX(player.x), worldToMapY(player.z)); context.rotate(-player.yaw);
