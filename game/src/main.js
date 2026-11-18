@@ -1,134 +1,99 @@
-// Boot and the one loop: input is read every frame, the world advances in fixed 1/60 s steps
-// (several in a slow frame, none in a fast one), and the renderer paints what is there. The game
-// moves between four screens: title, play, paused and game over.
-//
-// ?seed=N fixes the falling pattern. ?shot=start|play|end (with &seed=N) stages that scene
-// instead of running the loop, paints it twice and sets window.__shotReady for a screenshot.
-import { BEST_KEY, LIVES, STEP } from './config.js';
-import { createRandom } from './random.js';
-import { createWorld, EVENT_HIT, EVENT_OVER } from './world.js';
-import { ACTION_CONFIRM, ACTION_PAUSE, createInput } from './input.js';
-import { createRenderer, SCREEN_OVER, SCREEN_PAUSED, SCREEN_PLAY, SCREEN_TITLE } from './render.js';
-import { stageShot } from './shots.js';
+import * as THREE from 'three';
+import { makeCity } from './world.js';
+import { makePlayer, updatePlayer, jumpPlayer } from './player.js';
+import { loadSave, saveGame } from './save.js';
+import { drawMap } from './minimap.js';
+import { showHud, setPaused } from './hud.js';
+import { prepareShot } from './shots.js';
 
-/** The longest frame the loop catches up on; a longer stall (a hidden tab) is dropped, not replayed. */
-const MAX_FRAME = 0.25;
+const query = new URLSearchParams(location.search);
+const seed = Number(query.get('seed')) || 611;
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xb7d5d5);
+scene.fog = new THREE.FogExp2(0xdcc7a6, .0022);
+const camera = new THREE.PerspectiveCamera(58, innerWidth / innerHeight, .1, 1200);
+const renderer = new THREE.WebGLRenderer({ canvas: document.querySelector('#view'), antialias: true, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 1.6));
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.12;
 
-const params = new URLSearchParams(window.location.search);
-const shot = params.get('shot');
-const seedParam = Number.parseInt(params.get('seed') ?? '', 10);
-const seed = Number.isInteger(seedParam) ? seedParam : Math.floor(Math.random() * 4294967296);
+scene.add(new THREE.HemisphereLight(0xdaf3f0, 0x826b4e, 2.1));
+const sun = new THREE.DirectionalLight(0xffd19a, 3.2);
+sun.position.set(-55, 105, 45); sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.camera.left = -180; sun.shadow.camera.right = 180; sun.shadow.camera.top = 180; sun.shadow.camera.bottom = -180;
+scene.add(sun);
 
-const canvas = document.getElementById('game');
-const status = document.getElementById('status');
-const world = createWorld(createRandom(seed));
-const renderer = createRenderer(canvas);
+const city = makeCity(seed); scene.add(city.root);
+const player = makePlayer(scene);
+Object.assign(player, loadSave()); player.body.position.set(player.x, 0, player.z);
+const overlay = document.querySelector('#overlay'), hud = document.querySelector('#hud');
+const keys = new Set();
+let playing = false, paused = false, yaw = player.yaw, pitch = .13, last = performance.now(), dragging = false, previousX = 0, previousY = 0;
 
-function readBest() {
-  try {
-    return Number.parseInt(window.localStorage.getItem(BEST_KEY) ?? '0', 10) || 0;
-  } catch {
-    return 0;
-  }
+function enterWorld() {
+  playing = true; paused = false; overlay.style.display = 'none'; hud.style.display = 'block'; setPaused(false);
+  if (query.get('shot') !== 'foot') document.querySelector('#view').requestPointerLock?.();
+}
+function togglePause() {
+  if (!playing) return;
+  paused = !paused; setPaused(paused);
+  if (paused) { saveGame(player); document.exitPointerLock?.(); }
+  else if (query.get('shot') !== 'foot') document.querySelector('#view').requestPointerLock?.();
+}
+function setLook(dx, dy) {
+  yaw -= dx * .0028; pitch = Math.max(-.12, Math.min(.72, pitch + dy * .0022)); player.yaw = yaw;
 }
 
-function saveBest(value) {
-  try {
-    window.localStorage.setItem(BEST_KEY, String(value));
-  } catch {
-    // Storage can be off (private windows): the best score then lasts this visit only.
-  }
+document.querySelector('#start').addEventListener('click', enterWorld);
+document.addEventListener('keydown', (event) => {
+  keys.add(event.code);
+  if (['Space', 'ArrowUp', 'ArrowDown'].includes(event.code)) event.preventDefault();
+  if (event.code === 'Escape' && !event.repeat) togglePause();
+  if (event.code === 'Space' && playing && !paused && !event.repeat) jumpPlayer(player);
+});
+document.addEventListener('keyup', (event) => keys.delete(event.code));
+document.addEventListener('mousemove', (event) => {
+  if (document.pointerLockElement === renderer.domElement) setLook(event.movementX, event.movementY);
+  else if (dragging) { setLook(event.clientX - previousX, event.clientY - previousY); previousX = event.clientX; previousY = event.clientY; }
+});
+renderer.domElement.addEventListener('pointerdown', (event) => {
+  dragging = true; previousX = event.clientX; previousY = event.clientY;
+  if (playing && !paused && query.get('shot') !== 'foot') renderer.domElement.requestPointerLock?.();
+});
+addEventListener('pointerup', () => { dragging = false; });
+addEventListener('blur', () => keys.clear());
+addEventListener('beforeunload', () => saveGame(player));
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+function positionCamera() {
+  const distance = 8.2;
+  const target = new THREE.Vector3(player.x, player.y + 2.05, player.z);
+  const horizontal = Math.cos(pitch) * distance;
+  camera.position.set(player.x - Math.sin(yaw) * horizontal, player.y + 2.7 + Math.sin(pitch) * distance, player.z - Math.cos(yaw) * horizontal);
+  camera.lookAt(target);
 }
 
-function runShot(name) {
-  const scene = stageShot(name, world);
-  let painted = 0;
-  function paint() {
-    renderer.draw(world.state, scene.screen, scene.best);
-    painted += 1;
-    if (painted < 2) requestAnimationFrame(paint);
-    else window.__shotReady = true;
-  }
-  requestAnimationFrame(paint);
-}
-
-function runGame() {
-  const input = createInput(canvas);
-  let screen = SCREEN_TITLE;
-  let best = readBest();
-  let accumulator = 0;
-  let last = performance.now();
-
-  // Screen readers (and anyone watching the page's text) hear the screen changes and each hit.
-  function announce(message) {
-    status.textContent = message;
-  }
-
-  function startGame() {
-    world.reset();
-    accumulator = 0;
-    screen = SCREEN_PLAY;
-    announce(`Playing. ${LIVES} lives.`);
-  }
-
-  function endGame() {
-    screen = SCREEN_OVER;
-    if (world.state.score > best) {
-      best = world.state.score;
-      saveBest(best);
-    }
-    announce(`Game over. Score ${world.state.score}. Best ${best}.`);
-  }
-
-  function handleActions() {
-    const actions = input.takeActions();
-    if (actions & ACTION_CONFIRM && (screen === SCREEN_TITLE || screen === SCREEN_OVER)) startGame();
-    else if (actions & ACTION_PAUSE && screen === SCREEN_PLAY) {
-      screen = SCREEN_PAUSED;
-      announce('Paused.');
-    } else if (actions & (ACTION_PAUSE | ACTION_CONFIRM) && screen === SCREEN_PAUSED) {
-      screen = SCREEN_PLAY;
-      announce('Playing.');
-    }
-  }
-
-  function step() {
-    if (screen === SCREEN_TITLE) {
-      world.step(STEP, 0, true);
-      return;
-    }
-    const events = world.step(STEP, input.direction(), false);
-    if (events & EVENT_OVER) endGame();
-    else if (events & EVENT_HIT) announce(world.state.lives === 1 ? 'Hit. 1 life left.' : `Hit. ${world.state.lives} lives left.`);
-  }
-
-  function frame(now) {
-    requestAnimationFrame(frame);
-    accumulator += Math.min((now - last) / 1000, MAX_FRAME);
-    last = now;
-    handleActions();
-    if (screen === SCREEN_TITLE || screen === SCREEN_PLAY) {
-      while (accumulator >= STEP && (screen === SCREEN_TITLE || screen === SCREEN_PLAY)) {
-        step();
-        accumulator -= STEP;
-      }
-    } else {
-      accumulator = 0;
-    }
-    renderer.draw(world.state, screen, best);
-  }
-
-  // Leaving the tab pauses a running game rather than letting blocks fall unseen.
-  document.addEventListener('visibilitychange', () => {
-    if (document.hidden && screen === SCREEN_PLAY) {
-      screen = SCREEN_PAUSED;
-      announce('Paused.');
-    }
-  });
-
-  announce('Block Dodger. Press Space or click to start.');
+const shot = query.get('shot');
+prepareShot(shot, player, enterWorld);
+yaw = player.yaw;
+function frame(now) {
   requestAnimationFrame(frame);
+  const dt = Math.min(.045, (now - last) / 1000); last = now;
+  if (playing && !paused) {
+    updatePlayer(player, keys, dt, city);
+    positionCamera(); showHud(player); drawMap(document.querySelector('#map'), city, player);
+    if (Math.floor(now / 7000) !== Math.floor((now - dt * 1000) / 7000)) saveGame(player);
+  } else if (!playing && !shot) {
+    yaw += dt * .035; positionCamera();
+  }
+  renderer.render(scene, camera);
 }
-
-if (shot) runShot(shot);
-else runGame();
+positionCamera(); requestAnimationFrame(frame);

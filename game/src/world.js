@@ -1,124 +1,113 @@
-// The game's rules and state, with no drawing and no browser in it: the player's paddle, the
-// pool of falling blocks and coins, spawning, collisions, score, lives and level. step() advances
-// one fixed step and returns what happened as bit flags, so the caller can react without the
-// world knowing about screens or sound. Nothing here allocates after createWorld returns.
-import { BLOCK, COIN, FIELD, LEVEL, LIVES, PLAYER, POOL_SIZE } from './config.js';
+import * as THREE from 'three';
+import { seeded } from './random.js';
 
-export const KIND_BLOCK = 0;
-export const KIND_COIN = 1;
+export const BLOCK = 40;
+export const CITY_RADIUS = 5;
+export const CITY_EDGE = BLOCK * (CITY_RADIUS + 1);
+const palette = [0xd7ad83, 0xf0d4a7, 0xc98369, 0xaec2b1, 0xd1c9b6, 0xe3b57d, 0x9db9bc, 0xe8d3bd];
 
-export const EVENT_HIT = 1;
-export const EVENT_COIN = 2;
-export const EVENT_OVER = 4;
+function material(color, roughness = 0.86) { return new THREE.MeshStandardMaterial({ color, roughness }); }
 
-function overlaps(a, b) {
-  return a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
+function box(group, x, y, z, w, h, d, mat, cast = true) {
+  const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+  mesh.position.set(x, y + h / 2, z);
+  mesh.receiveShadow = true;
+  mesh.castShadow = cast;
+  group.add(mesh);
+  return mesh;
 }
 
-export function createWorld(random) {
-  const player = { x: 0, y: FIELD.groundY - PLAYER.height, width: PLAYER.width, height: PLAYER.height, invulnerable: 0 };
-  const items = [];
-  for (let index = 0; index < POOL_SIZE; index += 1) {
-    items.push({ active: false, kind: KIND_BLOCK, x: 0, y: 0, width: 0, height: 0, speed: 0 });
+function makePalm(group, x, z, height, bark, leaf) {
+  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(.21, .36, height, 7), bark);
+  trunk.position.set(x, height / 2, z); trunk.rotation.z = -.08; trunk.castShadow = true; group.add(trunk);
+  for (let i = 0; i < 7; i += 1) {
+    const angle = i * Math.PI * 2 / 7;
+    const frond = new THREE.Mesh(new THREE.ConeGeometry(.48, height * .58, 5), leaf);
+    frond.position.set(x + Math.cos(angle) * 1.35, height + .12, z + Math.sin(angle) * 1.35);
+    frond.rotation.z = Math.cos(angle) * .93; frond.rotation.x = Math.sin(angle) * .93;
+    frond.castShadow = true; group.add(frond);
   }
-  const state = { player, items, score: 0, lives: LIVES, level: 1, elapsed: 0, blockTimer: 0, coinTimer: 0 };
+}
 
-  function reset() {
-    player.x = (FIELD.width - player.width) / 2;
-    player.invulnerable = 0;
-    for (const item of items) item.active = false;
-    state.score = 0;
-    state.lives = LIVES;
-    state.level = 1;
-    state.elapsed = 0;
-    state.blockTimer = BLOCK.interval;
-    state.coinTimer = COIN.interval;
+function makeLamp(group, x, z, metal, glow) {
+  box(group, x, 0, z, .18, 4.6, .18, metal);
+  box(group, x + .56, 4.42, z, 1.18, .14, .16, metal);
+  const bulb = new THREE.Mesh(new THREE.SphereGeometry(.24, 8, 6), glow);
+  bulb.position.set(x + 1.08, 4.15, z); group.add(bulb);
+}
+
+function building(group, rng, x, z, w, d, list) {
+  const h = 7 + rng() * 24;
+  const color = palette[Math.floor(rng() * palette.length)];
+  const body = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), material(color));
+  body.position.set(x, h / 2, z); body.castShadow = true; body.receiveShadow = true; body.userData.solid = true;
+  group.add(body); list.push({ x: x - w / 2, z: z - d / 2, w, d });
+  const roofMat = material([0xb65e49, 0x8f8d78, 0xe7c59a, 0x698b88][Math.floor(rng() * 4)]);
+  box(group, x, h + .12, z, w + .15, .24, d + .15, roofMat);
+  if (rng() > .45) {
+    box(group, x + (rng() - .5) * w * .5, h + .7, z + (rng() - .5) * d * .5, 2.1, .9, 1.8, material(0xe8d2af));
   }
-
-  function freeItem() {
-    for (let index = 0; index < items.length; index += 1) if (!items[index].active) return items[index];
-    return null;
-  }
-
-  function spawnBlock() {
-    const item = freeItem();
-    if (item === null) return;
-    item.active = true;
-    item.kind = KIND_BLOCK;
-    item.width = BLOCK.minWidth + random() * (BLOCK.maxWidth - BLOCK.minWidth);
-    item.height = BLOCK.height;
-    item.x = random() * (FIELD.width - item.width);
-    item.y = -item.height;
-    item.speed = BLOCK.speed + BLOCK.speedPerLevel * (state.level - 1) + random() * BLOCK.speedJitter;
-  }
-
-  function spawnCoin() {
-    const item = freeItem();
-    if (item === null) return;
-    item.active = true;
-    item.kind = KIND_COIN;
-    item.width = COIN.size;
-    item.height = COIN.size;
-    item.x = random() * (FIELD.width - item.width);
-    item.y = -item.height;
-    item.speed = COIN.speed + COIN.speedPerLevel * (state.level - 1);
-  }
-
-  function blockInterval() {
-    return Math.max(BLOCK.minInterval, BLOCK.interval * BLOCK.intervalScale ** (state.level - 1));
-  }
-
-  /**
-   * One fixed step. `direction` is -1, 0 or 1 (left, still, right). With `harmless` set (the title
-   * screen's backdrop) things fall but nothing touches the player and nothing scores.
-   */
-  function step(dt, direction, harmless) {
-    let events = 0;
-    state.elapsed += dt;
-    state.level = Math.min(LEVEL.max, 1 + Math.floor(state.elapsed / LEVEL.seconds));
-
-    player.x = Math.min(FIELD.width - player.width, Math.max(0, player.x + direction * PLAYER.speed * dt));
-    if (player.invulnerable > 0) player.invulnerable = Math.max(0, player.invulnerable - dt);
-
-    state.blockTimer -= dt;
-    if (state.blockTimer <= 0) {
-      spawnBlock();
-      state.blockTimer += blockInterval();
+  const windowMat = material(0x537b7c, .34);
+  const rows = Math.max(1, Math.floor(h / 3.5));
+  for (let row = 0; row < rows; row += 1) {
+    for (let col = 0; col < Math.max(1, Math.floor(w / 3)); col += 1) {
+      const wx = x - w / 2 + 1.3 + col * 2.7;
+      const wy = 1.8 + row * 3.2;
+      if (wy < h - .8 && wx < x + w / 2 - .6) box(group, wx, wy, z + d / 2 + .035, 1.05, 1.55, .07, windowMat, false);
     }
-    state.coinTimer -= dt;
-    if (state.coinTimer <= 0) {
-      spawnCoin();
-      state.coinTimer += COIN.interval + random() * COIN.intervalJitter;
-    }
-
-    for (let index = 0; index < items.length; index += 1) {
-      const item = items[index];
-      if (!item.active) continue;
-      item.y += item.speed * dt;
-      if (item.y > FIELD.groundY) {
-        item.active = false;
-        if (item.kind === KIND_BLOCK && !harmless) state.score += BLOCK.dodgePoints;
-        continue;
-      }
-      if (harmless || !overlaps(item, player)) continue;
-      if (item.kind === KIND_COIN) {
-        item.active = false;
-        state.score += COIN.points;
-        events |= EVENT_COIN;
-      } else if (player.invulnerable === 0) {
-        item.active = false;
-        state.lives -= 1;
-        player.invulnerable = PLAYER.invulnerable;
-        events |= EVENT_HIT;
-        if (state.lives === 0) {
-          events |= EVENT_OVER;
-          break;
-        }
-      }
-    }
-    return events;
   }
+}
 
-  reset();
-  return { state, reset, step };
+export function makeCity(seed = 611) {
+  const rng = seeded(seed || 611), root = new THREE.Group(), solids = [], buildings = [], props = [];
+  const sand = material(0xd9bd91), road = material(0x555958), sidewalk = material(0xd6c5a5), paint = material(0xe8d5a9);
+  const grass = material(0x9b9b69), palmBark = material(0x76543b), palmLeaf = material(0x436c54);
+  const lampMetal = material(0x334b4b), lampGlow = new THREE.MeshBasicMaterial({ color: 0xffd68a });
+  const water = new THREE.Mesh(new THREE.PlaneGeometry(1000, 1000), new THREE.MeshStandardMaterial({ color: 0x4fabb0, roughness: .3, metalness: .12 }));
+  water.rotation.x = -Math.PI / 2; water.position.set(0, -.12, -CITY_EDGE - 440); root.add(water);
+  box(root, 0, -.12, -CITY_EDGE - 22, 1400, .18, 32, sand, false);
+  box(root, 0, -.22, 0, CITY_EDGE * 2 + 160, .35, CITY_EDGE * 2 + 160, grass, false);
+  const span = CITY_EDGE * 2;
+  for (let i = -CITY_RADIUS; i <= CITY_RADIUS; i += 1) {
+    const p = i * BLOCK;
+    box(root, p, -.04, 0, 11, .12, span, road, false);
+    box(root, 0, -.035, p, span, .13, 11, road, false);
+    box(root, p - 7.1, .02, 0, 2.9, .16, span, sidewalk, false);
+    box(root, p + 7.1, .02, 0, 2.9, .16, span, sidewalk, false);
+    box(root, 0, .02, p - 7.1, span, .16, 2.9, sidewalk, false);
+    box(root, 0, .02, p + 7.1, span, .16, 2.9, sidewalk, false);
+    for (let dash = -CITY_RADIUS; dash < CITY_RADIUS; dash += 1) {
+      box(root, p, .045, dash * BLOCK + 8, .16, .035, 5, paint, false);
+      box(root, dash * BLOCK + 8, .045, p, 5, .035, .16, paint, false);
+    }
+  }
+  for (let gx = -CITY_RADIUS; gx < CITY_RADIUS; gx += 1) {
+    for (let gz = -CITY_RADIUS; gz < CITY_RADIUS; gz += 1) {
+      const centerX = gx * BLOCK + BLOCK / 2, centerZ = gz * BLOCK + BLOCK / 2;
+      if (centerZ < -CITY_EDGE + 42 && rng() < .6) continue;
+      const inset = 3 + rng() * 2, w = BLOCK - 16 - inset, d = BLOCK - 16 - inset;
+      building(root, rng, centerX, centerZ, w, d, solids);
+      buildings.push([centerX, centerZ]);
+    }
+  }
+  // The eastern shore turns into a public promenade and a timber pier.
+  box(root, CITY_EDGE + 16, .08, -20, 6, .3, CITY_EDGE * 1.7, material(0xb99168), false);
+  box(root, CITY_EDGE + 76, .02, -CITY_EDGE - 230, 12, .32, 260, material(0x997552), false);
+  for (let z = -CITY_EDGE - 350; z < CITY_EDGE; z += 18) {
+    makePalm(root, CITY_EDGE + 9, z, 7 + rng() * 3, palmBark, palmLeaf);
+    props.push({ kind: 'palm', x: CITY_EDGE + 9, z });
+  }
+  for (let x = -CITY_RADIUS * BLOCK; x <= CITY_RADIUS * BLOCK; x += 40) {
+    makeLamp(root, x - 5, -5.7, lampMetal, lampGlow);
+    props.push({ kind: 'lamp', x: x - 5, z: -5.7 });
+  }
+  // Benches and hydrants make the curb line readable at walking height.
+  const benchMat = material(0x765342), hydrantMat = material(0xc85a45);
+  for (let x = -CITY_EDGE + 18; x < CITY_EDGE; x += 38) {
+    box(root, x, .2, 8.8, 2.5, .22, .75, benchMat);
+    box(root, x, .65, 8.5, 2.5, .85, .18, benchMat);
+    box(root, x + 5, .02, -8.5, .55, .9, .55, hydrantMat);
+    props.push({ kind: 'bench', x, z: 8.8 }, { kind: 'hydrant', x: x + 5, z: -8.5 });
+  }
+  return { root, solids, buildings, props, seed: seed || 611, edge: CITY_EDGE };
 }
