@@ -59,3 +59,18 @@ export function updatePlayer(player, keys, dt, city) {
 }
 
 export function jumpPlayer(player) { if (player.y <= .001) player.vy = 8.2; }
+
+const STAMINA_MAX = 100, STAMINA_FLOOR = 15, STAMINA_DRAIN = 22, STAMINA_REFILL = 14;
+export function canSprint(player) {
+  if (player.stamina === undefined) player.stamina = STAMINA_MAX;
+  return player.stamina > STAMINA_FLOOR;
+}
+export function sprintTick(player, dt, sprinting) {
+  if (player.stamina === undefined) player.stamina = STAMINA_MAX;
+  if (sprinting && player.stamina > 0) player.stamina = Math.max(0, player.stamina - STAMINA_DRAIN * dt);
+  else player.stamina = Math.min(STAMINA_MAX, player.stamina + STAMINA_REFILL * dt);
+}
+export function staminaPct(player) {
+  if (player.stamina === undefined) player.stamina = STAMINA_MAX;
+  return Math.round(player.stamina / STAMINA_MAX * 100);
+}

@@ -9,3 +9,10 @@ export function seeded(seed = 1) {
     return ((value ^ (value >>> 14)) >>> 0) / 4294967296;
   };
 }
+
+export function pick(rng, list) { return list[Math.floor(rng() * list.length)]; }
+export function shuffle(rng, list) {
+  const copy = list.slice();
+  for (let i = copy.length - 1; i > 0; i -= 1) { const j = Math.floor(rng() * (i + 1)); const tmp = copy[i]; copy[i] = copy[j]; copy[j] = tmp; }
+  return copy;
+}

@@ -115,6 +115,28 @@ function building(group, rng, x, z, w, d, list) {
   }
 }
 
+export const skyState = { sunDisc: null, moonDisc: null };
+
+export function makeSky(group) {
+  const sunMat = new THREE.MeshBasicMaterial({ color: 0xffc95e, fog: false });
+  const sunDisc = new THREE.Mesh(new THREE.CircleGeometry(14, 32), sunMat);
+  sunDisc.position.set(-320, 260, -180);
+  sunDisc.lookAt(0, 0, 0);
+  const haloMat = new THREE.MeshBasicMaterial({ color: 0xffe9a8, transparent: true, opacity: .35, fog: false });
+  const halo = new THREE.Mesh(new THREE.CircleGeometry(22, 32), haloMat);
+  halo.position.set(0, 0, -2);
+  sunDisc.add(halo);
+  group.add(sunDisc);
+  const moonMat = new THREE.MeshBasicMaterial({ color: 0xe8ecdf, fog: false });
+  const moonDisc = new THREE.Mesh(new THREE.CircleGeometry(9, 32), moonMat);
+  moonDisc.position.set(320, 240, 180);
+  moonDisc.lookAt(0, 0, 0);
+  group.add(moonDisc);
+  skyState.sunDisc = sunDisc;
+  skyState.moonDisc = moonDisc;
+  return skyState;
+}
+
 export function makeCity(seed = 611) {
   const rng = seeded(seed || 611), root = new THREE.Group(), solids = [], buildings = [], props = [];
   const sand = material(0xd9bd91), road = material(0x555958), sidewalk = material(0xd6c5a5), paint = material(0xe8d5a9);
@@ -152,6 +174,7 @@ export function makeCity(seed = 611) {
   box(root, CITY_EDGE + 76, .02, -CITY_EDGE - 230, 12, .32, 260, material(0x997552), false);
   makePier(root, 120, -258, -382);
   makeLighthouse(root, CITY_EDGE + 30, -CITY_EDGE - 30);
+  makeSky(root);
   props.push({ kind: 'pier', x: 120, z: -320 }, { kind: 'lighthouse', x: CITY_EDGE + 30, z: -CITY_EDGE - 30 });
   for (let z = -CITY_EDGE - 350; z < CITY_EDGE; z += 18) {
     makePalm(root, CITY_EDGE + 9, z, 7 + rng() * 3, palmBark, palmLeaf);

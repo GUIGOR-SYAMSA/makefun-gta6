@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { makeCity } from './world.js';
+import { skyState } from './world.js';
 import { makePlayer, updatePlayer, jumpPlayer } from './player.js';
 import { loadSave, saveGame } from './save.js';
 import { drawMap } from './minimap.js';
@@ -164,8 +165,27 @@ prepareShot(shot, player, enterWorld);
 if (shot === 'drive') { activeCar=traffic.parked[0]; player.body.visible=false; activeCar.speed=0; enterWorld(); }
 if (shot === 'chase') { activeCar=traffic.parked[0]; activeCar.x=player.x; activeCar.z=player.z; activeCar.yaw=player.yaw; activeCar.root.position.set(activeCar.x,0,activeCar.z); activeCar.root.rotation.y=activeCar.yaw; player.body.visible=false; enterWorld(); }
 yaw = player.yaw;
+function cycleLight(now) {
+  const day = (now / 240000) % 1;
+  const angle = day * Math.PI * 2;
+  const radius = 380;
+  if (skyState.sunDisc) {
+    skyState.sunDisc.position.set(Math.cos(angle) * radius, Math.sin(angle) * 240 + 80, -180);
+    skyState.sunDisc.lookAt(0, 0, 0);
+  }
+  if (skyState.moonDisc) {
+    skyState.moonDisc.position.set(Math.cos(angle + Math.PI) * radius, Math.sin(angle + Math.PI) * 240 + 80, 180);
+    skyState.moonDisc.lookAt(0, 0, 0);
+  }
+  const daylight = Math.max(0, Math.sin(angle));
+  sun.intensity = 1.2 + daylight * 2;
+  sun.color.setHSL(.09, .75, .55 + daylight * .12);
+  scene.background.setHSL(.55, .25, .35 + daylight * .3);
+}
+
 function frame(now) {
   requestAnimationFrame(frame);
+  cycleLight(now);
   const dt = Math.min(.045, (now - last) / 1000); last = now;
   if (playing && !paused) {
     if (activeCar) {movePlayerCar(activeCar, keys, dt, city, traffic); if(Math.abs(activeCar.speed)>1){for(const c of traffic.police)if(Math.hypot(c.x-activeCar.x,c.z-activeCar.z)<4&&performance.now()>(c.hitCooldown||0)){addWanted(seenByWitness(activeCar.x,activeCar.z)?1:0);c.hitCooldown=performance.now()+1800;}} if(Math.abs(activeCar.speed)>5&&traffic.people.some(p=>!p.down&&Math.hypot(p.x-activeCar.x,p.z-activeCar.z)<2.3)){const p=traffic.people.find(p=>!p.down&&Math.hypot(p.x-activeCar.x,p.z-activeCar.z)<2.3);p.down=true;p.downAt=performance.now();p.root.rotation.x=Math.PI/2;addWanted(seenByWitness(activeCar.x,activeCar.z)?1:0);}}

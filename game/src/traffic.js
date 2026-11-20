@@ -27,6 +27,24 @@ function makeCar(scene, x, z, yaw, color, traffic = false, police = false, taxi 
   return { root, x, z, yaw, speed: 0, traffic, police, radius: 2.1, color };
 }
 
+function makeBus(scene, x, z, yaw) {
+  const root = new THREE.Group(); root.position.set(x, 0, z); root.rotation.y = yaw;
+  const paint = new THREE.MeshStandardMaterial({ color: 0x7a8a7d, roughness: .55, metalness: .08 });
+  const body = new THREE.Mesh(new THREE.BoxGeometry(2.5, 2.6, 9.5), paint);
+  body.position.y = 1.5; body.castShadow = true; body.receiveShadow = true; root.add(body);
+  const glass = new THREE.Mesh(new THREE.BoxGeometry(2.3, .9, 8.6), new THREE.MeshStandardMaterial({ color: 0x2e4a4e, roughness: .2, metalness: .3 }));
+  glass.position.y = 2.1; root.add(glass);
+  const sign = new THREE.Mesh(new THREE.BoxGeometry(1.4, .4, .2), new THREE.MeshStandardMaterial({ color: 0xf2e6b8, emissive: 0x6a5a1a }));
+  sign.position.set(0, 2.35, 4.8); root.add(sign);
+  const wheelMat = new THREE.MeshStandardMaterial({ color: 0x202326, roughness: .9 });
+  for (const wz of [-3.2, 3.2]) for (const wx of [-1.2, 1.2]) {
+    const wheel = new THREE.Mesh(new THREE.CylinderGeometry(.45, .45, .26, 12), wheelMat);
+    wheel.rotation.z = Math.PI / 2; wheel.position.set(wx, .45, wz); root.add(wheel);
+  }
+  scene.add(root);
+  return { root, x, z, yaw, speed: 0, traffic: false, police: false, radius: 4.2, color: 0x7a8a7d };
+}
+
 export function makeTraffic(scene) {
   const parked = [
     makeCar(scene, -4.4, -40, 0, colors[0]), makeCar(scene, 18, 40, Math.PI, colors[1]),
@@ -40,6 +58,7 @@ export function makeTraffic(scene) {
     [[80,40],[80,0],[80,-40],[80,-80],[40,-80],[0,-80],[-40,-80],[-80,-80],[-80,0],[-80,80],[0,80]],
   ];
   const cars = routes.map((route, i) => ({ ...makeCar(scene, route[0][0], route[0][1], 0, coastColors[i % coastColors.length], true, false, i === 1), route, target: 1 }));
+  cars.push({ ...makeBus(scene, 0, -40, 0), route: routes[0], target: 3 });
   const people = [];
   const peopleMat = [0x4c6f86,0xc46e4c,0x665284,0x55714c].map(color => new THREE.MeshStandardMaterial({ color }));
   for (let i = 0; i < 9; i++) {

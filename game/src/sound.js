@@ -20,11 +20,53 @@ function start() {
     waves.connect(waveFilter); waveFilter.connect(waveGain); waveGain.connect(master);
     waves.start(); waveLfo.start();
     hum = audio.createOscillator(); hum.type = 'sine'; hum.frequency.value = 55; humVol = audio.createGain(); humVol.gain.value = 0; hum.connect(humVol); humVol.connect(master); hum.start();
+    startRadio();
   });
 }
 function note(hz, length = .12, wave = 'sine', volume = .08) { safe(() => { if (!audio || audio.state !== 'running' || muted) return; const osc = audio.createOscillator(), amp = audio.createGain(); osc.type = wave; osc.frequency.value = hz; amp.gain.setValueAtTime(volume, audio.currentTime); amp.gain.exponentialRampToValueAtTime(.001, audio.currentTime + length); osc.connect(amp); amp.connect(master); osc.start(); osc.stop(audio.currentTime + length); }); }
+let radioTimer = null, radioOn = true, radioStation = 0, radioStep = 0;
+const RADIO_STATIONS = [
+  {
+    name: 'SOLMAR FM', bpm: 96, wave: 'triangle',
+    bass: [55, 0, 65.41, 0, 49, 0, 58.27, 0],
+    lead: [220, 277.18, 329.63, 261.63, 293.66, 329.63, 392, 329.63],
+  },
+  {
+    name: 'NIGHT DRIVE', bpm: 132, wave: 'sawtooth',
+    bass: [55, 55, 82.41, 55, 49, 49, 73.42, 98],
+    lead: [440, 0, 415.3, 0, 466.16, 0, 493.88, 554.37],
+  },
+];
+function radioTick() {
+  if (!radioOn || !audio || audio.state !== 'running' || muted) return;
+  const station = RADIO_STATIONS[radioStation];
+  const bassNote = station.bass[radioStep % station.bass.length];
+  if (bassNote) note(bassNote, .24, station.wave, .05);
+  const leadNote = station.lead[radioStep % station.lead.length];
+  if (leadNote && radioStep % 2 === 0) note(leadNote, .15, 'square', .02);
+  radioStep += 1;
+}
+function startRadio() {
+  safe(() => {
+    if (radioTimer || !audio) return;
+    const stepMs = 60000 / RADIO_STATIONS[radioStation].bpm / 2;
+    radioTimer = setInterval(radioTick, stepMs);
+  });
+}
+function setRadio(on) {
+  radioOn = !!on;
+  if (radioOn) startRadio();
+  else { clearInterval(radioTimer); radioTimer = null; }
+}
+function nextStation() {
+  radioStation = (radioStation + 1) % RADIO_STATIONS.length;
+  radioStep = 0;
+  if (radioTimer) { clearInterval(radioTimer); radioTimer = null; startRadio(); }
+  return RADIO_STATIONS[radioStation].name;
+}
 export const sound = {
   start,
+  startRadio, setRadio, nextStation,
   toggle(value) { muted = value; safe(() => master?.gain.setTargetAtTime(muted ? 0 : .18, audio.currentTime, .04)); },
   setHum(speed) { safe(() => { if (!audio || !hum) return; const v = Math.abs(speed); hum.frequency.setTargetAtTime(55 + Math.min(90, v * 3.5), audio.currentTime, .12); humVol.gain.setTargetAtTime(v > 1 && !muted ? .018 : 0, audio.currentTime, .15); }); },
   update(speed, wanted) { safe(() => { if (!audio) return; this.setHum(speed); engine.frequency.setTargetAtTime(48 + Math.min(180, Math.abs(speed) * 5), audio.currentTime, .1); engineVol.gain.setTargetAtTime(Math.abs(speed) > 1 && !muted ? .035 : 0, audio.currentTime, .12); siren.frequency.setTargetAtTime(620 + Math.sin(performance.now() / 180) * 240, audio.currentTime, .08); sirenVol.gain.setTargetAtTime(wanted && !muted ? .022 : 0, audio.currentTime, .1); if (Math.floor(audio.currentTime * 1.8) !== loopAt) { loopAt = Math.floor(audio.currentTime * 1.8); note(55, .18, 'triangle', .025); note(1500, .025, 'square', .008); } }); },

@@ -14,3 +14,17 @@ export function freshMissions(value = {}) {
 }
 
 export function missionFor(state) { return state.stage < 4 ? STORY.jobs[state.stage] : STORY.repeat; }
+
+export const SIDES = {
+  jobs: [
+    { title: 'QUICK COURIER', call: 'A shopkeeper by the pier needs a parcel at the north gate. Fast feet, clean hands.', pickup: [120, -120], drop: [0, -120], reward: 180 },
+    { title: 'PHOTO SPOT', call: 'A tourist wants a picture of the lighthouse at dusk. Drive them there and wait.', pickup: [-40, 40], drop: [120, -160], reward: 220 },
+    { title: 'NIGHT FERRY', call: 'A dockworker missed the last ferry. Get him to the marina before the tide turns.', pickup: [80, 80], drop: [120, -120], reward: 260 },
+  ],
+};
+
+export function sideCount() { return SIDES.jobs.length; }
+
+export function sideFor(state) { return SIDES.jobs[(Number(state.sideNo) || 0) % SIDES.jobs.length]; }
+
+export function nextSide(state) { state.sideNo = (Number(state.sideNo) || 0) + 1; return sideFor(state); }

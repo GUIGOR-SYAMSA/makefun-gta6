@@ -21,4 +21,15 @@ export function drawMap(canvas, city, player, traffic = null, activeCar = null) 
   context.save(); context.translate(worldToMapX(player.x), worldToMapY(player.z)); context.rotate(-player.yaw);
   context.fillStyle = '#d9503f'; context.strokeStyle = '#fff4d8'; context.lineWidth = 2.5;
   context.beginPath(); context.moveTo(0, -10); context.lineTo(7, 8); context.lineTo(0, 4); context.lineTo(-7, 8); context.closePath(); context.fill(); context.stroke(); context.restore();
+  context.fillStyle = '#253c45'; context.font = 'bold 13px sans-serif'; context.textAlign = 'center';
+  context.beginPath(); context.moveTo(size - 14, 20); context.lineTo(size - 19, 30); context.lineTo(size - 9, 30); context.closePath(); context.fill();
+  context.fillText('N', size - 14, 12);
+  context.strokeStyle = '#253c45'; context.lineWidth = 1.5;
+  context.beginPath(); context.arc(size - 14, 26, 12, 0, Math.PI * 2); context.stroke();
+  context.font = '10px sans-serif'; context.textAlign = 'left'; context.fillStyle = '#253c45';
+  context.fillText('1 CM ≈ 40 M', 8, size - 8);
+  context.strokeStyle = '#253c45'; context.lineWidth = 2;
+  context.beginPath(); context.moveTo(8, size - 16); context.lineTo(48, size - 16); context.stroke();
+  context.beginPath(); context.moveTo(8, size - 20); context.lineTo(8, size - 12); context.stroke();
+  context.beginPath(); context.moveTo(48, size - 20); context.lineTo(48, size - 12); context.stroke();
 }
