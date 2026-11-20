@@ -1,12 +1,18 @@
 import * as THREE from 'three';
 
 const colors = [0xd84d3e, 0x397c91, 0xe0b94f, 0x704a89, 0xe5e0cf, 0x3f7659];
-function makeCar(scene, x, z, yaw, color, traffic = false, police = false) {
+const coastColors = [0xd98a6c, 0x9fc2b0, 0xe3c98f, 0x7fa8b5, 0xc9b8a3];
+function makeCar(scene, x, z, yaw, color, traffic = false, police = false, taxi = false) {
   const root = new THREE.Group(); root.position.set(x, 0, z); root.rotation.y = yaw;
-  const body = new THREE.Mesh(new THREE.BoxGeometry(2.15, .82, 4.1), new THREE.MeshStandardMaterial({ color, roughness: .42, metalness: .12 }));
+  const paint = taxi ? 0xf2c230 : color;
+  const body = new THREE.Mesh(new THREE.BoxGeometry(2.15, .82, 4.1), new THREE.MeshStandardMaterial({ color: paint, roughness: .42, metalness: .12 }));
   body.position.y = .72; body.castShadow = true; body.receiveShadow = true; root.add(body);
   const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.65, .7, 1.95), new THREE.MeshStandardMaterial({ color: 0x91b8b7, roughness: .26, metalness: .18 }));
   cabin.position.set(0, 1.42, -.1); cabin.castShadow = true; root.add(cabin);
+  if (taxi) {
+    const sign = new THREE.Mesh(new THREE.BoxGeometry(.95, .26, .42), new THREE.MeshStandardMaterial({ color: 0xfff6d8, emissive: 0x8a7a2a }));
+    sign.position.set(0, 1.9, -.1); sign.castShadow = true; root.add(sign);
+  }
   if (police) {
     const stripe = new THREE.Mesh(new THREE.BoxGeometry(2.17,.2,2.15),new THREE.MeshStandardMaterial({color:0xf4f1e6})); stripe.position.set(0,.85,0); root.add(stripe);
     const bar = new THREE.Mesh(new THREE.BoxGeometry(.9,.16,.34),new THREE.MeshStandardMaterial({color:0x185bbb,emissive:0x123e99})); bar.position.set(0,1.84,-.12); root.add(bar);
@@ -24,7 +30,7 @@ function makeCar(scene, x, z, yaw, color, traffic = false, police = false) {
 export function makeTraffic(scene) {
   const parked = [
     makeCar(scene, -4.4, -40, 0, colors[0]), makeCar(scene, 18, 40, Math.PI, colors[1]),
-    makeCar(scene, -40, 17, Math.PI / 2, colors[2]), makeCar(scene, 40, -17, -Math.PI / 2, colors[3]),
+    makeCar(scene, -40, 17, Math.PI / 2, colors[2], false, false, true), makeCar(scene, 40, -17, -Math.PI / 2, colors[3]),
     makeCar(scene, -40, 80, 0, colors[4]), makeCar(scene, 80, 40, Math.PI, colors[5]),
   ];
   // Clockwise rectangular routes on the street center lines.
@@ -33,7 +39,7 @@ export function makeTraffic(scene) {
     [[0,40],[0,0],[0,-40],[0,-80],[-40,-80],[-80,-80],[-80,-40],[-80,0],[-80,40],[-40,40]],
     [[80,40],[80,0],[80,-40],[80,-80],[40,-80],[0,-80],[-40,-80],[-80,-80],[-80,0],[-80,80],[0,80]],
   ];
-  const cars = routes.map((route, i) => ({ ...makeCar(scene, route[0][0], route[0][1], 0, colors[(i + 2) % colors.length], true), route, target: 1 }));
+  const cars = routes.map((route, i) => ({ ...makeCar(scene, route[0][0], route[0][1], 0, coastColors[i % coastColors.length], true, false, i === 1), route, target: 1 }));
   const people = [];
   const peopleMat = [0x4c6f86,0xc46e4c,0x665284,0x55714c].map(color => new THREE.MeshStandardMaterial({ color }));
   for (let i = 0; i < 9; i++) {

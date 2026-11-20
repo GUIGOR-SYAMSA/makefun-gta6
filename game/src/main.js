@@ -132,7 +132,7 @@ function completeObjective(now) {
   if (state.phase === 'pickup' && state.stage === 1) { state.phase = 'drop'; state.point = { x: 80, z: -80 }; player.wanted = Math.max(1, player.wanted); sound.pickup(); return; }
   if (state.phase === 'pickup' || state.phase === 'drop' || (state.phase === 'escape' && player.wanted === 0)) {
     player.cash += state.reward; sound.complete(); state.doneText = `JOB DONE — $${state.reward}`; state.doneUntil = now + 3000;
-    state.stage = Math.min(3, state.stage + 1); state.phase = 'waiting'; state.point = null; state.nextAt = now + 3500;
+    state.stage = Math.min(4, state.stage + 1); state.phase = 'waiting'; state.point = null; state.nextAt = now + 3500;
     document.querySelector('#call').style.display = 'none'; saveGame(player, activeCar, traffic.parked);
   }
 }
@@ -191,7 +191,7 @@ function frame(now) {
     const objective = document.querySelector('#objective');
     if (stamp < ms.doneUntil) objective.innerHTML = `${ms.doneText}<small>MARA'S CUT IS YOURS</small>`;
     else if (ms.point) { const dx=ms.point.x-subject.x,dz=ms.point.z-subject.z; const bearing=Math.atan2(dx,dz)-yaw; const direction=['N','NE','E','SE','S','SW','W','NW'][Math.round((((bearing*180/Math.PI)+360)%360)/45)%8]; objective.innerHTML = `${missionFor(ms).title}<small>${ms.phase === 'drop' ? 'DELIVER PACKAGE' : 'PICK UP PACKAGE'} · ${Math.round(Math.hypot(dx,dz))}M ${direction}</small>`; }
-    else objective.innerHTML = ms.phase === 'escape' ? 'LOSE THEM<small>LOSE THE POLICE · WANTED 0</small>' : ms.stage >= 3 && ms.phase === 'waiting' ? 'MARA WILL CALL<small>NEXT RUN SOON</small>' : 'NO ACTIVE JOB<small>MARA WILL CALL</small>';
+    else objective.innerHTML = ms.phase === 'escape' ? 'LOSE THEM<small>LOSE THE POLICE · WANTED 0</small>' : ms.stage >= 4 && ms.phase === 'waiting' ? 'MARA WILL CALL<small>NEXT RUN SOON</small>' : 'NO ACTIVE JOB<small>MARA WILL CALL</small>';
     if (Math.floor(now / 7000) !== Math.floor((now - dt * 1000) / 7000)) saveGame(player, activeCar, traffic.parked);
   } else if (!playing && !shot) {
     yaw += dt * .035; positionCamera();

@@ -36,6 +36,52 @@ function makeLamp(group, x, z, metal, glow) {
   bulb.position.set(x + 1.08, 4.15, z); group.add(bulb);
 }
 
+function makeLighthouse(group, x, z) {
+  const stone = material(0x8a8578), white = material(0xf2ede2), red = material(0xc4452f), dark = material(0x2c3436);
+  const base = new THREE.Mesh(new THREE.CylinderGeometry(4.4, 5.2, 2.4, 10), stone);
+  base.position.set(x, 1.2, z); base.castShadow = true; base.receiveShadow = true; group.add(base);
+  const tower = new THREE.Mesh(new THREE.CylinderGeometry(1.7, 2.7, 22, 12), white);
+  tower.position.set(x, 13.4, z); tower.castShadow = true; tower.receiveShadow = true; group.add(tower);
+  const bandA = new THREE.Mesh(new THREE.CylinderGeometry(2.42, 2.42, 1.4, 12), red);
+  bandA.position.set(x, 9.4, z); bandA.castShadow = true; group.add(bandA);
+  const bandB = new THREE.Mesh(new THREE.CylinderGeometry(2.08, 2.08, 1.4, 12), red);
+  bandB.position.set(x, 16.9, z); bandB.castShadow = true; group.add(bandB);
+  const lampRoom = new THREE.Mesh(new THREE.CylinderGeometry(1.9, 1.9, 2.2, 10), dark);
+  lampRoom.position.set(x, 25.5, z); lampRoom.castShadow = true; group.add(lampRoom);
+  const lamp = new THREE.Mesh(new THREE.SphereGeometry(.85, 10, 8), new THREE.MeshBasicMaterial({ color: 0xffe9a8 }));
+  lamp.position.set(x, 25.5, z); group.add(lamp);
+  const cap = new THREE.Mesh(new THREE.ConeGeometry(2.1, 1.6, 10), dark);
+  cap.position.set(x, 27.4, z); cap.castShadow = true; group.add(cap);
+  const beam = new THREE.Group();
+  beam.position.set(x, 25.5, z);
+  const coneMat = new THREE.MeshBasicMaterial({ color: 0xffe9a8, transparent: true, opacity: .16, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
+  const coneA = new THREE.Mesh(new THREE.ConeGeometry(2.6, 30, 12, 1, true), coneMat);
+  coneA.rotation.z = Math.PI / 2; coneA.position.x = 15; beam.add(coneA);
+  const coneB = new THREE.Mesh(new THREE.ConeGeometry(2.6, 30, 12, 1, true), coneMat);
+  coneB.rotation.z = -Math.PI / 2; coneB.position.x = -15; beam.add(coneB);
+  const sweep = () => { beam.rotation.y = performance.now() * .00045; };
+  coneA.onBeforeRender = sweep; coneB.onBeforeRender = sweep;
+  group.add(beam);
+  return beam;
+}
+
+function makePier(group, x, zFrom, zTo) {
+  const plankMat = material(0x8a6a48), postMat = material(0x5f4630);
+  for (let z = zFrom; z >= zTo; z -= 2.2) {
+    box(group, x, .55, z, 4.6, .22, 1.9, plankMat);
+  }
+  for (let z = zFrom; z >= zTo; z -= 6.6) {
+    for (const side of [-2, 2]) {
+      const post = new THREE.Mesh(new THREE.CylinderGeometry(.28, .28, 2.4, 8), postMat);
+      post.position.set(x + side, -.4, z); post.castShadow = true; group.add(post);
+    }
+  }
+  for (const side of [-2, 2]) {
+    const mooring = new THREE.Mesh(new THREE.CylinderGeometry(.34, .34, 3.4, 8), postMat);
+    mooring.position.set(x + side, .1, zTo + 1); mooring.castShadow = true; group.add(mooring);
+  }
+}
+
 function building(group, rng, x, z, w, d, list) {
   const h = 7 + rng() * 24;
   const color = palette[Math.floor(rng() * palette.length)];
@@ -46,6 +92,17 @@ function building(group, rng, x, z, w, d, list) {
   box(group, x, h + .12, z, w + .15, .24, d + .15, roofMat);
   if (rng() > .45) {
     box(group, x + (rng() - .5) * w * .5, h + .7, z + (rng() - .5) * d * .5, 2.1, .9, 1.8, material(0xe8d2af));
+  }
+  if (rng() < .42) {
+    const tankX = x + (rng() - .5) * w * .55, tankZ = z + (rng() - .5) * d * .55;
+    const tank = new THREE.Mesh(new THREE.CylinderGeometry(.95, .95, 1.7, 10), material(0x8d8578));
+    tank.position.set(tankX, h + 1.21, tankZ); tank.castShadow = true; group.add(tank);
+    const tankTop = new THREE.Mesh(new THREE.ConeGeometry(1.05, .7, 10), material(0x6e675c));
+    tankTop.position.set(tankX, h + 2.41, tankZ); tankTop.castShadow = true; group.add(tankTop);
+  }
+  if (rng() > .55) {
+    const roomH = 1.1 + rng() * 2.4;
+    box(group, x + (rng() - .5) * w * .4, h + .36, z + (rng() - .5) * d * .4, 2.6 + rng() * 1.6, roomH, 2.2 + rng() * 1.4, material(0xd8c39a));
   }
   const windowMat = material(0x537b7c, .34);
   const rows = Math.max(1, Math.floor(h / 3.5));
@@ -93,6 +150,9 @@ export function makeCity(seed = 611) {
   // The eastern shore turns into a public promenade and a timber pier.
   box(root, CITY_EDGE + 16, .08, -20, 6, .3, CITY_EDGE * 1.7, material(0xb99168), false);
   box(root, CITY_EDGE + 76, .02, -CITY_EDGE - 230, 12, .32, 260, material(0x997552), false);
+  makePier(root, 120, -258, -382);
+  makeLighthouse(root, CITY_EDGE + 30, -CITY_EDGE - 30);
+  props.push({ kind: 'pier', x: 120, z: -320 }, { kind: 'lighthouse', x: CITY_EDGE + 30, z: -CITY_EDGE - 30 });
   for (let z = -CITY_EDGE - 350; z < CITY_EDGE; z += 18) {
     makePalm(root, CITY_EDGE + 9, z, 7 + rng() * 3, palmBark, palmLeaf);
     props.push({ kind: 'palm', x: CITY_EDGE + 9, z });

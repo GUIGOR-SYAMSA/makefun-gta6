@@ -7,6 +7,14 @@ export function showHud(player, car = null) {
   const minute = Math.floor((performance.now() / 18000 + 42) % 60);
   const hour = 16 + Math.floor((minute + 42) / 60);
   document.querySelector('#clock').textContent = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')} · COASTAL DISTRICT`;
+  const stars = document.querySelector('.stars');
+  if (stars) {
+    stars.style.display = player.wanted > 0 ? 'inline-block' : 'none';
+    stars.style.background = '#ef4444';
+    stars.style.color = '#ffffff';
+    stars.style.padding = '2px 10px';
+    stars.style.borderRadius = '999px';
+  }
 }
 
 export function setPaused(value) {

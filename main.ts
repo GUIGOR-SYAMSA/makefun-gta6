@@ -1,6 +1,6 @@
 // SOLMAR HEAT — stage one is a coastal city walk, with deterministic streets, local saves and a compact HUD.
 // This hand-in keeps the starter copy-and-dossier plumbing intact.
-import { cpSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildDossier } from './vendor/makefun-game.ts';
@@ -9,7 +9,10 @@ const here = fileURLToPath(new URL('.', import.meta.url));
 const out = process.env.MAKEFUN_OUTPUT_DIR ?? '/output';
 
 mkdirSync(out, { recursive: true });
+if (!existsSync(join(here, 'game'))) throw new Error(`game directory missing: ${join(here, 'game')}`);
 cpSync(join(here, 'game'), join(out, 'game'), { recursive: true });
+const copied = readdirSync(join(out, 'game'), { recursive: true, withFileTypes: true }).filter((e) => e.isFile()).length;
+console.log(`build: ${copied} game files -> ${out}`);
 mkdirSync(join(out, 'screenshots'), { recursive: true });
 if (existsSync(join(here, 'screenshots'))) cpSync(join(here, 'screenshots'), join(out, 'screenshots'), { recursive: true });
 
@@ -27,3 +30,4 @@ writeFileSync(
     game_path_max_bytes: 1000,
   }),
 );
+console.log(`dossier: ${join(out, 'dossier.json')} built at ${new Date().toISOString()}`);
